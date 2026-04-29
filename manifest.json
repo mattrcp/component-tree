@@ -1,0 +1,12 @@
+{
+  "name": "Component Tree Extractor",
+  "id": "1626346389494809535",
+  "api": "1.0.0",
+  "main": "dist/plugin/code.js",
+  "ui": "dist/index.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["none"]
+  },
+  "documentAccess": "dynamic-page"
+}

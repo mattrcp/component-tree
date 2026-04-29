@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* ---- Base reset ---- */
+body {
+  margin: 0;
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
+/* ---- Keyframes ---- */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- Animation utilities ---- */
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fade-in-up 0.25s ease-out forwards;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out forwards;
+  }
+}
+
+/* ---- Editor textarea ---- */
+.editor-textarea {
+  resize: none;
+  outline: none;
+  border: none;
+  background: transparent;
+  color: #1a1a1a;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre;
+  text-align: left;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+  padding: 14px;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+/* ---- Custom scrollbar (webkit) ---- */
+.editor-textarea::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.editor-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-textarea::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 3px;
+}
+.editor-textarea::-webkit-scrollbar-thumb:hover {
+  background: #b8b8b8;
+}
+.editor-textarea::-webkit-scrollbar-corner {
+  background: transparent;
+}
