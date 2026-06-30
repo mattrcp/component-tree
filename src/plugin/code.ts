@@ -86,6 +86,26 @@ const getColorAttributes = async (node: SceneNode): Promise<string[]> => {
     attrs.push(`radius: ${node.cornerRadius}px`);
   }
 
+  // Effects
+  if ("effects" in node) {
+    const effects = ((node as any).effects as Effect[]).filter(
+      (e) => e.visible !== false,
+    );
+    for (const e of effects) {
+      if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") {
+        const { r, g, b, a } = e.color;
+        const hex = rgbToHex(r, g, b);
+        const alpha = a < 1 ? ` / ${Math.round(a * 100)}%` : "";
+        const label = e.type === "DROP_SHADOW" ? "shadow" : "inner-shadow";
+        attrs.push(`${label}: ${hex}${alpha} blur:${e.radius}px`);
+      } else if (e.type === "LAYER_BLUR") {
+        attrs.push(`blur: ${e.radius}px`);
+      } else if (e.type === "BACKGROUND_BLUR") {
+        attrs.push(`bg-blur: ${e.radius}px`);
+      }
+    }
+  }
+
   return attrs;
 };
 
@@ -114,15 +134,29 @@ const getNodeAttributes = (
     }
   }
 
-  // Auto-layout
+  // Auto-layout / Grid
   if ("layoutMode" in node && node.layoutMode !== "NONE") {
-    attributes.push(node.layoutMode === "HORIZONTAL" ? "Row" : "Col");
-    if (
-      "itemSpacing" in node &&
-      typeof node.itemSpacing === "number" &&
-      node.itemSpacing > 0
-    )
-      attributes.push(`Gap: ${node.itemSpacing}px`);
+    if (node.layoutMode === "GRID") {
+      const n = node as any;
+      attributes.push(`Grid: ${n.gridColumnCount}col × ${n.gridRowCount}row`);
+      const cg: number = n.gridColumnGap ?? 0;
+      const rg: number = n.gridRowGap ?? 0;
+      if (cg > 0 && rg > 0 && cg === rg) attributes.push(`Gap: ${cg}px`);
+      else {
+        if (cg > 0) attributes.push(`ColGap: ${cg}px`);
+        if (rg > 0) attributes.push(`RowGap: ${rg}px`);
+      }
+    } else {
+      attributes.push(node.layoutMode === "HORIZONTAL" ? "Row" : "Col");
+      if ("layoutWrap" in node && node.layoutWrap === "WRAP")
+        attributes.push("Wrap");
+      if (
+        "itemSpacing" in node &&
+        typeof node.itemSpacing === "number" &&
+        node.itemSpacing > 0
+      )
+        attributes.push(`Gap: ${node.itemSpacing}px`);
+    }
     if ("paddingTop" in node && typeof node.paddingTop === "number") {
       const pt = node.paddingTop,
         pb = node.paddingBottom,
@@ -145,6 +179,18 @@ const getNodeAttributes = (
     if (node.fontName !== figma.mixed)
       attributes.push((node.fontName as FontName).style);
   }
+
+  // Opacity
+  if ("opacity" in node && typeof node.opacity === "number" && node.opacity < 1)
+    attributes.push(`opacity: ${Math.round(node.opacity * 100)}%`);
+
+  // Blend mode
+  if (
+    "blendMode" in node &&
+    node.blendMode !== "NORMAL" &&
+    node.blendMode !== "PASS_THROUGH"
+  )
+    attributes.push(`blend: ${node.blendMode}`);
 
   return attributes.length > 0 ? ` [${attributes.join(", ")}]` : "";
 };
@@ -217,15 +263,33 @@ const generateJSONTree = async (node: SceneNode): Promise<any> => {
       }
     }
 
-    // Auto-layout
+    // Auto-layout / Grid
     if ("layoutMode" in node && node.layoutMode !== "NONE") {
-      obj.layout = { mode: node.layoutMode === "HORIZONTAL" ? "Row" : "Col" };
-      if (
-        "itemSpacing" in node &&
-        typeof node.itemSpacing === "number" &&
-        node.itemSpacing > 0
-      )
-        obj.layout.gap = `${node.itemSpacing}px`;
+      if (node.layoutMode === "GRID") {
+        const n = node as any;
+        obj.layout = {
+          mode: "Grid",
+          columns: n.gridColumnCount,
+          rows: n.gridRowCount,
+        };
+        const cg: number = n.gridColumnGap ?? 0;
+        const rg: number = n.gridRowGap ?? 0;
+        if (cg > 0 && rg > 0 && cg === rg) obj.layout.gap = `${cg}px`;
+        else {
+          if (cg > 0) obj.layout.columnGap = `${cg}px`;
+          if (rg > 0) obj.layout.rowGap = `${rg}px`;
+        }
+      } else {
+        obj.layout = { mode: node.layoutMode === "HORIZONTAL" ? "Row" : "Col" };
+        if ("layoutWrap" in node && node.layoutWrap === "WRAP")
+          obj.layout.wrap = true;
+        if (
+          "itemSpacing" in node &&
+          typeof node.itemSpacing === "number" &&
+          node.itemSpacing > 0
+        )
+          obj.layout.gap = `${node.itemSpacing}px`;
+      }
       if ("paddingTop" in node && typeof node.paddingTop === "number") {
         const pt = node.paddingTop,
           pb = node.paddingBottom,
@@ -269,6 +333,47 @@ const generateJSONTree = async (node: SceneNode): Promise<any> => {
       (node.cornerRadius as number) > 0
     ) {
       obj.radius = `${node.cornerRadius}px`;
+    }
+
+    // Opacity
+    if (
+      "opacity" in node &&
+      typeof node.opacity === "number" &&
+      node.opacity < 1
+    )
+      obj.opacity = `${Math.round(node.opacity * 100)}%`;
+
+    // Blend mode
+    if (
+      "blendMode" in node &&
+      node.blendMode !== "NORMAL" &&
+      node.blendMode !== "PASS_THROUGH"
+    )
+      obj.blendMode = node.blendMode;
+
+    // Effects
+    if ("effects" in node) {
+      const visibleEffects = ((node as any).effects as Effect[]).filter(
+        (e) => e.visible !== false,
+      );
+      if (visibleEffects.length > 0) {
+        obj.effects = visibleEffects.map((e) => {
+          if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") {
+            const { r, g, b, a } = e.color;
+            return {
+              type: e.type === "DROP_SHADOW" ? "shadow" : "inner-shadow",
+              color: rgbToHex(r, g, b),
+              ...(a < 1 && { alpha: `${Math.round(a * 100)}%` }),
+              radius: `${e.radius}px`,
+            };
+          } else if (e.type === "LAYER_BLUR" || e.type === "BACKGROUND_BLUR") {
+            const label = e.type === "LAYER_BLUR" ? "blur" : "bg-blur";
+            return { type: label, radius: `${(e as BlurEffect).radius}px` };
+          } else {
+            return { type: e.type };
+          }
+        });
+      }
     }
   }
 
